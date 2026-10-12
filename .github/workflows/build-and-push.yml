@@ -22,10 +22,11 @@ jobs:
         set -euo pipefail
         SERIES=$(./scripts/get-maintained-openstack-series.sh)
         TAGS=$(printf '%s\n' "$SERIES" | sed 's/^/type=raw,value=/')
+        DELIMITER="series-tags-${RANDOM}-${RANDOM}-$$"
         {
-          echo "tags<<EOF"
+          echo "tags<<${DELIMITER}"
           printf '%s\n' "$TAGS"
-          echo "EOF"
+          echo "$DELIMITER"
         } >> "$GITHUB_OUTPUT"
         echo "Maintained OpenStack series:"
         printf '%s\n' "$SERIES"

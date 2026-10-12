@@ -49,6 +49,18 @@ cat > "$TEMP_DIR/series.yaml" <<'EOF'
   status: maintained
 EOF
 
+if OPENSTACK_RELEASE_ALLOW_FILE_URLS=false \
+  OPENSTACK_RELEASE_STATUS_URL="$(file_url "$TEMP_DIR/series.yaml")" \
+  sh "$SCRIPT" >"$TEMP_DIR/output" 2>"$TEMP_DIR/errors"; then
+  echo "Expected file:// metadata URLs to be rejected without the test opt-in" >&2
+  exit 1
+fi
+if ! grep -Eiq 'protocol.*file.*disabled|file.*protocol.*not supported' "$TEMP_DIR/errors"; then
+  echo "Expected curl to reject the file:// metadata URL by default, got:" >&2
+  cat "$TEMP_DIR/errors" >&2
+  exit 1
+fi
+
 cat > "$TEMP_DIR/deliverables/example-codename/python-openstackclient.yaml" <<'EOF'
 releases:
   - version: 10.3.0

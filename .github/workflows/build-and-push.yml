@@ -177,4 +177,5 @@ jobs:
             printf '| python-neutronclient | %s |\n' "$NEUTRON_VERSION"
             printf '\nDocker image: `jnovent/openstack-client:%s`\n' "$tag"
           } > release-notes.md
+          # Tag the source commit whose workflow built and published this latest image.
           gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --notes-file release-notes.md

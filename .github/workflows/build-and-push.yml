@@ -1,0 +1,52 @@
+name: Build and Push OpenStack CLI Docker Image
+
+on:
+  schedule:
+    # Run every Monday at 8:00 AM UTC (Monday morning)
+    - cron: '0 8 * * 1'
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Validate Docker Hub credentials
+      run: |
+        if [ -z "${{ secrets.DOCKER_USERNAME }}" ] || [ -z "${{ secrets.DOCKER_PASSWORD }}" ]; then
+          echo "Error: DOCKER_USERNAME or DOCKER_PASSWORD secrets are not set"
+          exit 1
+        fi
+        echo "Docker Hub credentials are configured"
+      
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        registry: docker.io
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: jnovent/openstack-cli
+        tags: |
+          type=schedule,pattern={{date 'YYYYMMDD'}}
+          type=raw,value=latest
+          
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        no-cache: true

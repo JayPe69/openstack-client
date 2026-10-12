@@ -148,6 +148,7 @@ jobs:
           no-cache: true
 
   release:
+    # A successful latest image is released even if an independent series build fails.
     needs:
       - versions
       - build-latest
@@ -168,16 +169,13 @@ jobs:
           NEUTRON_VERSION: ${{ needs.versions.outputs.neutron }}
         run: |
           tag="v${VERSION}"
-          cat > release-notes.md <<EOF
-          ## Embedded OpenStack CLI versions
-
-          | Client | Version |
-          | --- | --- |
-          | python-openstackclient | ${VERSION} |
-          | python-octaviaclient | ${OCTAVIA_VERSION} |
-          | python-cinderclient | ${CINDER_VERSION} |
-          | python-neutronclient | ${NEUTRON_VERSION} |
-
-          Docker image: \`jnovent/openstack-client:${tag}\`
-          EOF
+          {
+            printf '%s\n\n' '## Embedded OpenStack CLI versions'
+            printf '%s\n' '| Client | Version |' '| --- | --- |'
+            printf '| python-openstackclient | %s |\n' "$VERSION"
+            printf '| python-octaviaclient | %s |\n' "$OCTAVIA_VERSION"
+            printf '| python-cinderclient | %s |\n' "$CINDER_VERSION"
+            printf '| python-neutronclient | %s |\n' "$NEUTRON_VERSION"
+            printf '\nDocker image: `jnovent/openstack-client:%s`\n' "$tag"
+          } > release-notes.md
           gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --notes-file release-notes.md

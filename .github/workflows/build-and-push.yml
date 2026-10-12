@@ -16,21 +16,6 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
-    - name: Get maintained OpenStack series
-      id: series
-      run: |
-        set -euo pipefail
-        SERIES=$(sh ./scripts/get-maintained-openstack-series.sh)
-        TAGS=$(printf '%s\n' "$SERIES" | sed 's/^/type=raw,value=/')
-        DELIMITER="series-tags-${RANDOM}-${RANDOM}-$$"
-        {
-          echo "tags<<${DELIMITER}"
-          printf '%s\n' "$TAGS"
-          echo "$DELIMITER"
-        } >> "$GITHUB_OUTPUT"
-        echo "Maintained OpenStack series:"
-        printf '%s\n' "$SERIES"
-
     - name: Get latest openstackclient version
       id: version
       run: |
@@ -41,6 +26,25 @@ jobs:
         echo "neutron=$(./scripts/get-latest-neutron-version.sh)" >> "$GITHUB_OUTPUT"
         echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
         echo "Latest python-openstackclient: ${VERSION}"
+
+    - name: Get maintained OpenStack series
+      id: series
+      env:
+        IMAGE_TAG: ${{ steps.version.outputs.tag }}
+      run: |
+        set -euo pipefail
+        SERIES=$(sh ./scripts/get-maintained-openstack-series.sh)
+        SERIES_TAGS=$(printf '%s\n' "$SERIES" | sed 's/^/type=raw,value=/')
+        DELIMITER="series-tags-${RANDOM}-${RANDOM}-$$"
+        {
+          echo "tags<<${DELIMITER}"
+          printf 'type=raw,value=%s\n' "$IMAGE_TAG"
+          echo 'type=raw,value=latest'
+          printf '%s\n' "$SERIES_TAGS"
+          echo "$DELIMITER"
+        } >> "$GITHUB_OUTPUT"
+        echo "Maintained OpenStack series:"
+        printf '%s\n' "$SERIES"
 
     - name: Check if git tag exists
       id: tag_check
@@ -76,10 +80,7 @@ jobs:
       uses: docker/metadata-action@v5
       with:
         images: jnovent/openstack-client
-        tags: |
-          type=raw,value=${{ steps.version.outputs.tag }}
-          type=raw,value=latest
-          ${{ steps.series.outputs.tags }}
+        tags: ${{ steps.series.outputs.tags }}
           
     - name: Build and push Docker image
       uses: docker/build-push-action@v5

@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 
+if ! command -v ruby >/dev/null 2>&1; then
+  echo "Error: Ruby is required to parse OpenStack release status metadata" >&2
+  exit 1
+fi
+
 STATUS=$(curl -fsSL "https://raw.githubusercontent.com/openstack/releases/master/data/series_status.yaml")
 
 printf '%s\n' "$STATUS" | ruby -rdate -ryaml -e '

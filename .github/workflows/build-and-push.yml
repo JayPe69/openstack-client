@@ -19,6 +19,7 @@ jobs:
     - name: Get maintained OpenStack series
       id: series
       run: |
+        set -euo pipefail
         SERIES=$(./scripts/get-maintained-openstack-series.sh)
         TAGS=$(printf '%s\n' "$SERIES" | sed 's/^/type=raw,value=/')
         {

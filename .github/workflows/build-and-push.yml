@@ -1,0 +1,126 @@
+name: Build and Push OpenStack CLI Docker Image
+
+on:
+  schedule:
+    # Run every Monday at 8:00 AM UTC (Monday morning)
+    - cron: '0 8 * * 1'
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Get latest openstackclient version
+      id: version
+      run: |
+        VERSION=$(./scripts/get-latest-version.sh)
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "octavia=$(./scripts/get-latest-octavia-version.sh)" >> "$GITHUB_OUTPUT"
+        echo "cinder=$(./scripts/get-latest-cinder-version.sh)" >> "$GITHUB_OUTPUT"
+        echo "neutron=$(./scripts/get-latest-neutron-version.sh)" >> "$GITHUB_OUTPUT"
+        echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "Latest python-openstackclient: ${VERSION}"
+
+    - name: Check if git tag exists
+      id: tag_check
+      run: |
+        git fetch --tags --quiet
+        if git rev-parse -q --verify "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null; then
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+          echo "Tag exists: image will be rebuilt for security updates"
+        else
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Validate Docker Hub credentials
+      run: |
+        if [ -z "${{ secrets.DOCKER_USERNAME }}" ] || [ -z "${{ secrets.DOCKER_PASSWORD }}" ]; then
+          echo "Error: DOCKER_USERNAME or DOCKER_PASSWORD secrets are not set"
+          exit 1
+        fi
+        echo "Docker Hub credentials are configured"
+      
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        registry: docker.io
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: jnovent/openstack-cli
+        tags: |
+          type=raw,value=${{ steps.version.outputs.tag }}
+          type=raw,value=latest
+          
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        build-args: |
+          VERSION=${{ steps.version.outputs.version }}
+          OCTAVIA_VERSION=${{ steps.version.outputs.octavia }}
+          CINDER_VERSION=${{ steps.version.outputs.cinder }}
+          NEUTRON_VERSION=${{ steps.version.outputs.neutron }}
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        no-cache: true
+
+    - name: Create git tag and GitHub release
+      if: steps.tag_check.outputs.exists == 'false'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        git tag "${{ steps.version.outputs.tag }}"
+        git push origin "${{ steps.version.outputs.tag }}"
+        cat > release-notes.md <<EOF
+        ## Embedded OpenStack CLI versions
+
+        | Client | Version |
+        | --- | --- |
+        | python-openstackclient | ${{ steps.version.outputs.version }} |
+        | python-octaviaclient | ${{ steps.version.outputs.octavia }} |
+        | python-cinderclient | ${{ steps.version.outputs.cinder }} |
+        | python-neutronclient | ${{ steps.version.outputs.neutron }} |
+
+        Docker image: \`jnovent/openstack-cli:${{ steps.version.outputs.tag }}\`
+        EOF
+        gh release create "${{ steps.version.outputs.tag }}" --title "${{ steps.version.outputs.tag }}" --notes-file release-notes.md
+
+    - name: Prepare Docker Hub description
+      run: |
+        {
+          cat README.md
+          echo
+          echo "## Embedded client versions (${{ steps.version.outputs.tag }})"
+          echo
+          echo "| Client | Version |"
+          echo "| --- | --- |"
+          echo "| python-openstackclient | ${{ steps.version.outputs.version }} |"
+          echo "| python-octaviaclient | ${{ steps.version.outputs.octavia }} |"
+          echo "| python-cinderclient | ${{ steps.version.outputs.cinder }} |"
+          echo "| python-neutronclient | ${{ steps.version.outputs.neutron }} |"
+        } > dockerhub-description.md
+
+    - name: Update Docker Hub description
+      uses: peter-evans/dockerhub-description@v4
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        repository: jnovent/openstack-cli
+        short-description: "OpenStack CLI (openstack, octavia, cinder, neutron) ${{ steps.version.outputs.tag }}"
+        readme-filepath: ./dockerhub-description.md

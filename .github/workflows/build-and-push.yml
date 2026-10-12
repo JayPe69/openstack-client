@@ -62,8 +62,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          builds=$(sh ./scripts/get-maintained-openstack-builds.sh)
-          matrix=$(jq -c '{include: .}' <<< "$builds")
+          matrix=$(sh ./scripts/get-maintained-openstack-builds.sh)
           echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
           echo "Maintained build matrix: ${matrix}"
 

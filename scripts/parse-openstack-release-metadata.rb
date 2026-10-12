@@ -39,7 +39,7 @@ when "json"
     { name: name, version: version }
   end
   abort "No maintained OpenStack builds found" if builds.empty?
-  puts JSON.generate(builds)
+  puts JSON.generate(include: builds)
 else
   abort "Usage: parse-openstack-release-metadata.rb {series|version RELEASE_ID|json}"
 end

@@ -79,7 +79,7 @@ if ! BUILDS=$(run_with_source "$TEMP_DIR/series.yaml" 2>"$TEMP_DIR/warnings"); t
   cat "$TEMP_DIR/warnings" >&2
   exit 1
 fi
-EXPECTED='[{"name":"example-codename","version":"10.4.0"},{"name":"second-codename","version":"9.1.0"}]'
+EXPECTED='{"include":[{"name":"example-codename","version":"10.4.0"},{"name":"second-codename","version":"9.1.0"}]}'
 if [ "$BUILDS" != "$EXPECTED" ]; then
   echo "Expected $EXPECTED, got: $BUILDS" >&2
   exit 1

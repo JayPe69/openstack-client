@@ -34,16 +34,18 @@ jobs:
       id: series
       shell: bash
       env:
-        IMAGE_TAG: ${{ steps.version.outputs.tag }}
+        OPENSTACKCLIENT_VERSION: ${{ steps.version.outputs.version }}
       run: |
         set -euo pipefail
         SERIES=$(sh ./scripts/get-maintained-openstack-series.sh)
         DELIMITER="series-tags-$(openssl rand -hex 16)"
         {
           echo "tags<<${DELIMITER}"
-          printf 'type=raw,value=%s\n' "$IMAGE_TAG"
+          printf 'type=raw,value=v%s\n' "$OPENSTACKCLIENT_VERSION"
           echo 'type=raw,value=latest'
-          printf '%s\n' "$SERIES" | sed 's/^/type=raw,value=/'
+          while IFS= read -r codename; do
+            printf 'type=raw,value=%s-%s\n' "$codename" "$OPENSTACKCLIENT_VERSION"
+          done <<< "$SERIES"
           echo "$DELIMITER"
         } >> "$GITHUB_OUTPUT"
         echo "Maintained OpenStack series:"

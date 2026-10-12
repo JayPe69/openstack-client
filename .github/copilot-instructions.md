@@ -34,8 +34,9 @@ This repository builds a lightweight `python:3.12-alpine` Docker image (multi-st
 - **Schedule**: Every Monday at 8:00 AM UTC, plus manual `workflow_dispatch`
 - **Platforms**: linux/amd64, linux/arm64
 - **Registry**: Docker Hub (jnovent/openstack-client)
-- **Tags**: `latest` and `v<VERSION>`; the Docker Hub tag is identical to the GitHub tag, which is created only when a new openstackclient release appears (otherwise the same tag is rebuilt for security updates)
+- **Tags**: `latest`, `v<VERSION>`, and each OpenStack release series with `maintained` status; the Docker Hub version tag is identical to the GitHub tag, which is created only when a new openstackclient release appears (otherwise the same tag is rebuilt for security updates)
 - **Version detection**: `scripts/get-latest-version.sh` queries PyPI and its output is passed as the `VERSION` build arg
+- **OpenStack series**: `scripts/get-maintained-openstack-series.sh` reads the official `openstack/releases` series status metadata and supplies the maintained series tags
 - **Other clients**: `scripts/get-latest-{octavia,cinder,neutron}-version.sh` feed `OCTAVIA_VERSION`, `CINDER_VERSION`, `NEUTRON_VERSION`; all 4 versions are listed in the GitHub release notes
 - **Runtime user**: non-root `openstack` (home `/home/openstack`)
 - **Build**: `no-cache: true`

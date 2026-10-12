@@ -16,6 +16,19 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
+    - name: Get maintained OpenStack series
+      id: series
+      run: |
+        SERIES=$(./scripts/get-maintained-openstack-series.sh)
+        TAGS=$(printf '%s\n' "$SERIES" | sed 's/^/type=raw,value=/')
+        {
+          echo "tags<<EOF"
+          printf '%s\n' "$TAGS"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+        echo "Maintained OpenStack series:"
+        printf '%s\n' "$SERIES"
+
     - name: Get latest openstackclient version
       id: version
       run: |
@@ -64,6 +77,7 @@ jobs:
         tags: |
           type=raw,value=${{ steps.version.outputs.tag }}
           type=raw,value=latest
+          ${{ steps.series.outputs.tags }}
           
     - name: Build and push Docker image
       uses: docker/build-push-action@v5

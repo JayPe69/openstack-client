@@ -15,7 +15,10 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      
+
+    - name: Test maintained OpenStack series discovery
+      run: sh ./tests/test-maintained-openstack-series.sh
+
     - name: Get latest openstackclient version
       id: version
       run: |
@@ -35,7 +38,7 @@ jobs:
         set -euo pipefail
         SERIES=$(sh ./scripts/get-maintained-openstack-series.sh)
         SERIES_TAGS=$(printf '%s\n' "$SERIES" | sed 's/^/type=raw,value=/')
-        DELIMITER="series-tags-${RANDOM}-${RANDOM}-$$"
+        DELIMITER="series-tags-$(ruby -rsecurerandom -e 'print SecureRandom.hex(16)')"
         {
           echo "tags<<${DELIMITER}"
           printf 'type=raw,value=%s\n' "$IMAGE_TAG"

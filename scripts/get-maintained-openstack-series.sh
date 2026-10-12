@@ -11,9 +11,10 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
+STATUS_URL=${OPENSTACK_RELEASE_STATUS_URL:-https://raw.githubusercontent.com/openstack/releases/master/data/series_status.yaml}
 STATUS=$(curl --fail --silent --show-error --location \
   --connect-timeout 10 --max-time 30 --retry 3 --retry-delay 2 --retry-max-time 120 \
-  "https://raw.githubusercontent.com/openstack/releases/master/data/series_status.yaml")
+  "$STATUS_URL")
 
 printf '%s\n' "$STATUS" | ruby -rdate -ryaml -e '
 series = YAML.safe_load(STDIN.read, permitted_classes: [Date])

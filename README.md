@@ -9,7 +9,7 @@ Lightweight Alpine-based Docker image (`python:3.12-alpine`) embedding the OpenS
 
 The image is rebuilt every Monday at 8:00 AM UTC (a new GitHub tag is created only when a new python-openstackclient version is released; otherwise the existing tag is rebuilt to pick up security updates) and published to Docker Hub as [jnovent/openstack-client](https://hub.docker.com/r/jnovent/openstack-client). Docker Hub tags include `latest`, `v<openstackclient version>` (e.g. `v10.4.0`, identical to the GitHub tag), and each OpenStack release series currently marked `maintained` (format: `<year>.<series>`). The image runs as the non-root user `openstack`.
 
-Maintained-series tags are generated from the official OpenStack release status metadata. The release series script uses Ruby's standard YAML library, available on the GitHub-hosted Ubuntu runner.
+Maintained-series tags are generated from the official OpenStack release status metadata. The release series script uses Ruby's standard YAML library, available on the GitHub-hosted Ubuntu runner. Set `OPENSTACK_RELEASE_STATUS_URL` to use a metadata mirror.
 
 ## Basic Usage
 

@@ -16,6 +16,7 @@ This repository builds a lightweight `python:3.12-alpine` Docker image (multi-st
 - **Local Docker Build**: `docker build -t openstack-cli .`
   - May fail in sandboxed environments due to network/firewall limitations (Alpine/PyPI access)
   - **NEVER CANCEL**: Always wait for builds to complete or fail naturally; compiling wheels can take several minutes
+- **Latest version**: `./scripts/get-latest-version.sh`
 - **Alternative**: Pull and test existing image: `docker pull jnovent/openstack-cli:latest`
 
 ### Testing and Validation
@@ -26,14 +27,16 @@ This repository builds a lightweight `python:3.12-alpine` Docker image (multi-st
 4. **Subcommand help**: `docker run --rm jnovent/openstack-cli:latest server list --help`
 5. **With clouds.yaml** (requires a real cloud):
    ```bash
-   docker run --rm -v $(pwd)/clouds.yaml:/root/.config/openstack/clouds.yaml:ro jnovent/openstack-cli:latest --os-cloud mycloud server list
+   docker run --rm -v $(pwd)/clouds.yaml:/home/openstack/.config/openstack/clouds.yaml:ro jnovent/openstack-cli:latest --os-cloud mycloud server list
    ```
 
 ## CI/CD Pipeline
 - **Schedule**: Every Monday at 8:00 AM UTC, plus manual `workflow_dispatch`
 - **Platforms**: linux/amd64, linux/arm64
 - **Registry**: Docker Hub (jnovent/openstack-cli)
-- **Tags**: `latest` and `YYYYMMDD`
+- **Tags**: `latest` and `v<VERSION>`; the Docker Hub tag is identical to the GitHub tag, which is created only when a new openstackclient release appears (otherwise the same tag is rebuilt for security updates)
+- **Version detection**: `scripts/get-latest-version.sh` queries PyPI and its output is passed as the `VERSION` build arg
+- **Runtime user**: non-root `openstack` (home `/home/openstack`)
 - **Build**: `no-cache: true`
 - **NEVER CANCEL**: Multi-platform builds (arm64 compiles wheels under emulation) can take 15+ minutes
 
@@ -44,6 +47,7 @@ This repository builds a lightweight `python:3.12-alpine` Docker image (multi-st
 ## Dockerfile Modifications
 - Keep the multi-stage structure; build tooling must stay in the builder stage
 - Client versions are controlled by the `VERSION`, `OCTAVIA_VERSION`, `CINDER_VERSION`, `NEUTRON_VERSION` build args
+- Keep the non-root `USER openstack`
 - Use `apk --no-cache` for package installations
 - Do not add heatclient/glanceclient separately unless `openstack --help` shows a missing plugin
 

@@ -29,5 +29,12 @@ COPY --from=builder /wheels /wheels
 RUN pip install --no-cache --no-index --find-links=/wheels python-openstackclient python-octaviaclient python-cinderclient python-neutronclient \
     && rm -rf /wheels /root/.cache
 
+RUN addgroup -S openstack && adduser -S -G openstack -h /home/openstack openstack \
+    && mkdir -p /home/openstack/.config/openstack \
+    && chown -R openstack:openstack /home/openstack
+
+USER openstack
+WORKDIR /home/openstack
+
 ENTRYPOINT ["openstack"]
 CMD ["--help"]

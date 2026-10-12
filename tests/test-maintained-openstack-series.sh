@@ -9,6 +9,12 @@ file_url() {
   printf 'file://%s\n' "$1"
 }
 
+run_with_source() {
+  OPENSTACK_RELEASE_ALLOW_FILE_URLS=true \
+    OPENSTACK_RELEASE_STATUS_URL="$(file_url "$1")" \
+    sh "$SCRIPT"
+}
+
 cat > "$TEMP_DIR/series.yaml" <<'EOF'
 - name: future
   release-id: 2099.1
@@ -21,8 +27,7 @@ cat > "$TEMP_DIR/series.yaml" <<'EOF'
   status: maintained
 EOF
 
-SERIES_URL=$(file_url "$TEMP_DIR/series.yaml")
-if ! VERSIONS=$(OPENSTACK_RELEASE_STATUS_URL="$SERIES_URL" sh "$SCRIPT" 2>"$TEMP_DIR/warnings"); then
+if ! VERSIONS=$(run_with_source "$TEMP_DIR/series.yaml" 2>"$TEMP_DIR/warnings"); then
  echo "Failed to parse maintained-series test fixture" >&2
  cat "$TEMP_DIR/warnings" >&2
  exit 1
@@ -39,16 +44,14 @@ cat > "$TEMP_DIR/empty.yaml" <<'EOF'
   status: development
 EOF
 
-EMPTY_URL=$(file_url "$TEMP_DIR/empty.yaml")
-if OPENSTACK_RELEASE_STATUS_URL="$EMPTY_URL" sh "$SCRIPT" >"$TEMP_DIR/output" 2>"$TEMP_DIR/errors"; then
+if run_with_source "$TEMP_DIR/empty.yaml" >"$TEMP_DIR/output" 2>"$TEMP_DIR/errors"; then
   echo "Expected an error when no maintained release series are present" >&2
   exit 1
 fi
 grep -q "No maintained OpenStack release series found" "$TEMP_DIR/errors"
 
 printf '%s\n' "not-a-series-list" > "$TEMP_DIR/invalid.yaml"
-INVALID_URL=$(file_url "$TEMP_DIR/invalid.yaml")
-if OPENSTACK_RELEASE_STATUS_URL="$INVALID_URL" sh "$SCRIPT" >"$TEMP_DIR/output" 2>"$TEMP_DIR/errors"; then
+if run_with_source "$TEMP_DIR/invalid.yaml" >"$TEMP_DIR/output" 2>"$TEMP_DIR/errors"; then
   echo "Expected an error when release status metadata is not a list" >&2
   exit 1
 fi

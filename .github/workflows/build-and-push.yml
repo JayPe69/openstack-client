@@ -32,6 +32,7 @@ jobs:
 
     - name: Get maintained OpenStack series
       id: series
+      shell: bash
       env:
         IMAGE_TAG: ${{ steps.version.outputs.tag }}
       run: |

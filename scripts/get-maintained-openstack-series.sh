@@ -26,18 +26,18 @@ printf '%s\n' "$STATUS" | ruby -rdate -ryaml -e '
 series = YAML.safe_load(STDIN.read, permitted_classes: [Date])
 abort "Invalid OpenStack release status data" unless series.is_a?(Array)
 
-versions = series.filter_map do |item|
+names = series.filter_map do |item|
   next unless item.is_a?(Hash) && item["status"] == "maintained"
-  next unless item["release-id"]
+  next unless item["name"]
 
-  version = item["release-id"].to_s
-  unless version.match?(/\A\d{4}\.\d+\z/)
-    warn "Skipping maintained OpenStack series with invalid release ID: #{version}"
+  name = item["name"].to_s
+  unless name.match?(/\A[a-z0-9][a-z0-9_.-]*\z/)
+    warn "Skipping maintained OpenStack series with invalid codename: #{name}"
     next
   end
-  version
+  name
 end
 
-abort "No maintained OpenStack release series found" if versions.empty?
-puts versions
+abort "No maintained OpenStack release codenames found" if names.empty?
+puts names
 '

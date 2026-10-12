@@ -36,6 +36,7 @@ This repository builds a lightweight `python:3.12-alpine` Docker image (multi-st
 - **Registry**: Docker Hub (jnovent/openstack-cli)
 - **Tags**: `latest` and `v<VERSION>`; the Docker Hub tag is identical to the GitHub tag, which is created only when a new openstackclient release appears (otherwise the same tag is rebuilt for security updates)
 - **Version detection**: `scripts/get-latest-version.sh` queries PyPI and its output is passed as the `VERSION` build arg
+- **Other clients**: `scripts/get-latest-{octavia,cinder,neutron}-version.sh` feed `OCTAVIA_VERSION`, `CINDER_VERSION`, `NEUTRON_VERSION`; all 4 versions are listed in the GitHub release notes and Docker Hub description
 - **Runtime user**: non-root `openstack` (home `/home/openstack`)
 - **Build**: `no-cache: true`
 - **NEVER CANCEL**: Multi-platform builds (arm64 compiles wheels under emulation) can take 15+ minutes

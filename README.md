@@ -7,16 +7,16 @@ Lightweight Alpine-based Docker image (`python:3.12-alpine`) embedding the OpenS
 - `python-cinderclient` 9.10.0
 - `python-neutronclient` 14.0.0
 
-The image is rebuilt every Monday at 8:00 AM UTC (a new GitHub tag is created only when a new python-openstackclient version is released; otherwise the existing tag is rebuilt to pick up security updates) and published to Docker Hub as [jnovent/openstack-cli](https://hub.docker.com/r/jnovent/openstack-cli) (tags: `latest` and `v<openstackclient version>`, e.g. `v10.4.0`, identical to the GitHub tag). The image runs as the non-root user `openstack`.
+The image is rebuilt every Monday at 8:00 AM UTC (a new GitHub tag is created only when a new python-openstackclient version is released; otherwise the existing tag is rebuilt to pick up security updates) and published to Docker Hub as [jnovent/openstack-client](https://hub.docker.com/r/jnovent/openstack-client) (tags: `latest` and `v<openstackclient version>`, e.g. `v10.4.0`, identical to the GitHub tag). The image runs as the non-root user `openstack`.
 
 ## Basic Usage
 
 ```bash
-docker pull jnovent/openstack-cli:latest
+docker pull jnovent/openstack-client:latest
 
 # Help and version
-docker run --rm jnovent/openstack-cli:latest --help
-docker run --rm jnovent/openstack-cli:latest --version
+docker run --rm jnovent/openstack-client:latest --help
+docker run --rm jnovent/openstack-client:latest --version
 ```
 
 ## Using a clouds.yaml
@@ -26,7 +26,7 @@ Mount your `clouds.yaml` read-only:
 ```bash
 docker run --rm \
   -v $(pwd)/clouds.yaml:/home/openstack/.config/openstack/clouds.yaml:ro \
-  jnovent/openstack-cli:latest --os-cloud mycloud server list
+  jnovent/openstack-client:latest --os-cloud mycloud server list
 ```
 
 Or mount your whole OpenStack configuration directory:
@@ -34,17 +34,17 @@ Or mount your whole OpenStack configuration directory:
 ```bash
 docker run --rm \
   -v ~/.config/openstack:/home/openstack/.config/openstack \
-  jnovent/openstack-cli:latest --os-cloud mycloud server list
+  jnovent/openstack-client:latest --os-cloud mycloud server list
 ```
 
 ### Examples
 
 ```bash
-docker run --rm -v ~/.config/openstack:/home/openstack/.config/openstack jnovent/openstack-cli:latest --os-cloud mycloud server list
-docker run --rm -v ~/.config/openstack:/home/openstack/.config/openstack jnovent/openstack-cli:latest --os-cloud mycloud image list
-docker run --rm -v ~/.config/openstack:/home/openstack/.config/openstack jnovent/openstack-cli:latest --os-cloud mycloud network list
-docker run --rm -v ~/.config/openstack:/home/openstack/.config/openstack jnovent/openstack-cli:latest --os-cloud mycloud volume list
-docker run --rm -v ~/.config/openstack:/home/openstack/.config/openstack jnovent/openstack-cli:latest --os-cloud mycloud loadbalancer list
+docker run --rm -v ~/.config/openstack:/home/openstack/.config/openstack jnovent/openstack-client:latest --os-cloud mycloud server list
+docker run --rm -v ~/.config/openstack:/home/openstack/.config/openstack jnovent/openstack-client:latest --os-cloud mycloud image list
+docker run --rm -v ~/.config/openstack:/home/openstack/.config/openstack jnovent/openstack-client:latest --os-cloud mycloud network list
+docker run --rm -v ~/.config/openstack:/home/openstack/.config/openstack jnovent/openstack-client:latest --os-cloud mycloud volume list
+docker run --rm -v ~/.config/openstack:/home/openstack/.config/openstack jnovent/openstack-client:latest --os-cloud mycloud loadbalancer list
 ```
 
 ## Advanced Usage
@@ -55,7 +55,7 @@ docker run --rm -v ~/.config/openstack:/home/openstack/.config/openstack jnovent
 # Select a cloud from clouds.yaml
 docker run --rm -e OS_CLOUD=mycloud \
   -v ~/.config/openstack:/home/openstack/.config/openstack \
-  jnovent/openstack-cli:latest server list
+  jnovent/openstack-client:latest server list
 
 # Or authenticate with explicit variables
 docker run --rm \
@@ -65,7 +65,7 @@ docker run --rm \
   -e OS_PROJECT_NAME=myproject \
   -e OS_USER_DOMAIN_NAME=Default \
   -e OS_PROJECT_DOMAIN_NAME=Default \
-  jnovent/openstack-cli:latest server list
+  jnovent/openstack-client:latest server list
 ```
 
 ### Interactive mode
@@ -76,7 +76,7 @@ Use `-it` for an interactive OpenStack shell:
 docker run -it --rm \
   -v ~/.config/openstack:/home/openstack/.config/openstack \
   -e OS_CLOUD=mycloud \
-  jnovent/openstack-cli:latest
+  jnovent/openstack-client:latest
 ```
 
 ## Build locally

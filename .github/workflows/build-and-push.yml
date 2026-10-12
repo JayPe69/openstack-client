@@ -168,8 +168,6 @@ jobs:
           NEUTRON_VERSION: ${{ needs.versions.outputs.neutron }}
         run: |
           tag="v${VERSION}"
-          git tag "$tag" "$GITHUB_SHA"
-          git push origin "$tag"
           cat > release-notes.md <<EOF
           ## Embedded OpenStack CLI versions
 
@@ -182,4 +180,4 @@ jobs:
 
           Docker image: \`jnovent/openstack-client:${tag}\`
           EOF
-          gh release create "$tag" --title "$tag" --notes-file release-notes.md
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --notes-file release-notes.md

@@ -32,7 +32,7 @@ series.each do |item|
   name = item["name"].to_s
   release_id = item["release-id"].to_s
   unless name.match?(/\A[a-z0-9][a-z0-9_.-]*\z/) && release_id.match?(/\A\d{4}\.\d+\z/)
-    warn "Skipping maintained OpenStack series with invalid name or release ID"
+    warn "Skipping maintained OpenStack series with invalid name or release ID: #{name.inspect} / #{release_id.inspect}"
     next
   end
   puts "#{name}\t#{release_id}"
@@ -51,8 +51,12 @@ trap 'rm -rf "$TEMP_DIR"' EXIT HUP INT TERM
 while IFS="$(printf '\t')" read -r name release_id; do
   [ -n "$name" ] || continue
   deliverable_url="${DELIVERABLES_BASE_URL}/${name}/python-openstackclient.yaml"
-  deliverable=$(fetch "$deliverable_url")
-  version=$(printf '%s\n' "$deliverable" | RELEASE_ID="$release_id" ruby -rdate -ryaml -e '
+  if ! deliverable=$(fetch "$deliverable_url" 2>"$TEMP_DIR/fetch-errors"); then
+    echo "Skipping maintained series ${name} (${release_id}): failed to fetch python-openstackclient metadata" >&2
+    cat "$TEMP_DIR/fetch-errors" >&2
+    continue
+  fi
+  if ! version=$(printf '%s\n' "$deliverable" | RELEASE_ID="$release_id" ruby -rdate -ryaml -e '
     data = YAML.safe_load(STDIN.read, permitted_classes: [Date])
     abort "Invalid python-openstackclient release metadata" unless data.is_a?(Hash)
 
@@ -66,7 +70,11 @@ while IFS="$(printf '\t')" read -r name release_id; do
       abort "Invalid python-openstackclient version for #{branch_name}: #{version}"
     end
     puts version
-  ')
+  ' 2>"$TEMP_DIR/parse-errors"); then
+    echo "Skipping maintained series ${name} (${release_id}): unable to resolve its stable-branch client version" >&2
+    cat "$TEMP_DIR/parse-errors" >&2
+    continue
+  fi
   printf '%s\t%s\n' "$name" "$version" >> "$TEMP_DIR/builds.tsv"
 done <<EOF
 $SERIES

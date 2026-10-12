@@ -13,7 +13,6 @@ jobs:
   versions:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.versions.outputs.matrix }}
       version: ${{ steps.versions.outputs.version }}
       octavia: ${{ steps.versions.outputs.octavia }}
       cinder: ${{ steps.versions.outputs.cinder }}
@@ -23,19 +22,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Test maintained OpenStack build discovery
-        run: sh ./tests/test-maintained-openstack-builds.sh
-
-      - name: Resolve maintained OpenStack builds
+      - name: Resolve latest client versions
         id: versions
         shell: bash
         run: |
           set -euo pipefail
-          builds=$(sh ./scripts/get-maintained-openstack-builds.sh)
           version=$(./scripts/get-latest-version.sh)
-          matrix=$(jq -c '{include: .}' <<< "$builds")
 
-          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "octavia=$(./scripts/get-latest-octavia-version.sh)" >> "$GITHUB_OUTPUT"
           echo "cinder=$(./scripts/get-latest-cinder-version.sh)" >> "$GITHUB_OUTPUT"
@@ -45,18 +38,39 @@ jobs:
           git fetch --tags --quiet
           if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
             echo "tag_exists=true" >> "$GITHUB_OUTPUT"
-            echo "Tag exists: latest image will be rebuilt for security updates"
+            echo "GitHub release tag exists; latest image will be rebuilt"
           else
             echo "tag_exists=false" >> "$GITHUB_OUTPUT"
           fi
-          echo "Build matrix: ${matrix}"
+  series:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.series.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test maintained OpenStack build discovery
+        run: sh ./tests/test-maintained-openstack-builds.sh
+
+      - name: Resolve maintained OpenStack builds
+        id: series
+        shell: bash
+        run: |
+          set -euo pipefail
+          builds=$(sh ./scripts/get-maintained-openstack-builds.sh)
+          matrix=$(jq -c '{include: .}' <<< "$builds")
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+          echo "Maintained build matrix: ${matrix}"
 
   build-and-push:
-    needs: versions
+    needs:
+      - versions
+      - series
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.versions.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.series.outputs.matrix) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

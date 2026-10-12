@@ -30,13 +30,22 @@ expect_failure() {
   fi
 }
 
-mkdir -p "$TEMP_DIR/deliverables/example-codename"
+mkdir -p \
+  "$TEMP_DIR/deliverables/example-codename" \
+  "$TEMP_DIR/deliverables/second-codename" \
+  "$TEMP_DIR/deliverables/broken-codename"
 cat > "$TEMP_DIR/series.yaml" <<'EOF'
 - name: future
   release-id: 2099.1
   status: development
 - name: example-codename
   release-id: 2099.2
+  status: maintained
+- name: second-codename
+  release-id: 2099.4
+  status: maintained
+- name: broken-codename
+  release-id: 2099.3
   status: maintained
 EOF
 
@@ -49,16 +58,33 @@ branches:
     location: 10.4.0
 EOF
 
+cat > "$TEMP_DIR/deliverables/second-codename/python-openstackclient.yaml" <<'EOF'
+releases:
+  - version: 9.1.0
+branches:
+  - name: stable/2099.4
+    location: 9.1.0
+EOF
+
+cat > "$TEMP_DIR/deliverables/broken-codename/python-openstackclient.yaml" <<'EOF'
+releases:
+  - version: 8.1.0
+branches:
+  - name: stable/2099.3
+    location: 8.2.0
+EOF
+
 if ! BUILDS=$(run_with_source "$TEMP_DIR/series.yaml" 2>"$TEMP_DIR/warnings"); then
   echo "Failed to resolve maintained OpenStack build fixture" >&2
   cat "$TEMP_DIR/warnings" >&2
   exit 1
 fi
-EXPECTED='[{"name":"example-codename","version":"10.4.0"}]'
+EXPECTED='[{"name":"example-codename","version":"10.4.0"},{"name":"second-codename","version":"9.1.0"}]'
 if [ "$BUILDS" != "$EXPECTED" ]; then
   echo "Expected $EXPECTED, got: $BUILDS" >&2
   exit 1
 fi
+grep -Fq 'Skipping maintained series broken-codename (2099.3)' "$TEMP_DIR/warnings"
 
 cat > "$TEMP_DIR/empty.yaml" <<'EOF'
 - name: development
@@ -77,14 +103,15 @@ cat > "$TEMP_DIR/invalid-name.yaml" <<'EOF'
   release-id: 2099.2
   status: maintained
 EOF
-expect_failure "Skipping maintained OpenStack series with invalid name or release ID" "$TEMP_DIR/invalid-name.yaml"
+expect_failure 'Skipping maintained OpenStack series with invalid name or release ID: "bad codename" / "2099.2"' "$TEMP_DIR/invalid-name.yaml"
 
 cat > "$TEMP_DIR/missing-branch.yaml" <<'EOF'
 - name: example-codename
   release-id: 2099.3
   status: maintained
 EOF
-expect_failure "No python-openstackclient version found for stable/2099.3" "$TEMP_DIR/missing-branch.yaml"
+expect_failure "No maintained OpenStack builds found" "$TEMP_DIR/missing-branch.yaml"
+grep -Fq "No python-openstackclient version found for stable/2099.3" "$TEMP_DIR/errors"
 
 cat > "$TEMP_DIR/deliverables/example-codename/python-openstackclient.yaml" <<'EOF'
 releases:
@@ -93,6 +120,12 @@ branches:
   - name: stable/2099.2
     location: 10.4.0
 EOF
-expect_failure "Invalid python-openstackclient version for stable/2099.2" "$TEMP_DIR/series.yaml"
+cat > "$TEMP_DIR/invalid-location.yaml" <<'EOF'
+- name: example-codename
+  release-id: 2099.2
+  status: maintained
+EOF
+expect_failure "No maintained OpenStack builds found" "$TEMP_DIR/invalid-location.yaml"
+grep -Fq "Invalid python-openstackclient version for stable/2099.2: 10.4.0" "$TEMP_DIR/errors"
 
 echo "Maintained OpenStack build matrix tests passed."

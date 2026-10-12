@@ -33,6 +33,7 @@ jobs:
           set -euo pipefail
           builds=$(sh ./scripts/get-maintained-openstack-builds.sh)
           version=$(./scripts/get-latest-version.sh)
+          # If PyPI has a newer version than the maintained stable branches, add a latest-only matrix entry.
           matrix=$(jq -c --arg version "$version" '
             map(. + {latest: false}) as $builds
             | (first($builds[] | select(.version == $version)) // null) as $latest_build
@@ -97,7 +98,7 @@ jobs:
           images: jnovent/openstack-client
           flavor: latest=false
           tags: |
-            type=raw,value=${{ matrix.name || 'openstackclient' }}-${{ matrix.version }},enable=${{ matrix.name != '' }}
+            type=raw,value=${{ matrix.name }}-${{ matrix.version }},enable=${{ matrix.name != '' }}
             type=raw,value=v${{ matrix.version }},enable=${{ matrix.latest }}
             type=raw,value=latest,enable=${{ matrix.latest }}
 

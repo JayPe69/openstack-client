@@ -6,6 +6,10 @@ on:
     - cron: '0 8 * * 1'
   workflow_dispatch: # Allows manual triggering
 
+concurrency:
+  group: openstack-client-publish-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -192,7 +196,7 @@ jobs:
           NEUTRON_VERSION: ${{ needs.versions.outputs.neutron }}
         run: |
           tag="v${VERSION}"
-          git tag "$tag"
+          git tag "$tag" "$GITHUB_SHA"
           git push origin "$tag"
           cat > release-notes.md <<EOF
           ## Embedded OpenStack CLI versions

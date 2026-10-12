@@ -33,17 +33,7 @@ jobs:
           set -euo pipefail
           builds=$(sh ./scripts/get-maintained-openstack-builds.sh)
           version=$(./scripts/get-latest-version.sh)
-          # If PyPI has a newer version than the maintained stable branches, add a latest-only matrix entry.
-          matrix=$(jq -c --arg version "$version" '
-            map(. + {latest: false}) as $builds
-            | (first($builds[] | select(.version == $version)) // null) as $latest_build
-            | if $latest_build == null then
-                $builds + [{name: "", version: $version, latest: true}]
-              else
-                [$builds[] | . + {latest: (.name == $latest_build.name and .version == $latest_build.version)}]
-              end
-            | {include: .}
-          ' <<< "$builds")
+          matrix=$(jq -c '{include: .}' <<< "$builds")
 
           echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
@@ -99,8 +89,6 @@ jobs:
           flavor: latest=false
           tags: |
             type=raw,value=${{ matrix.name }}-${{ matrix.version }},enable=${{ matrix.name != '' }}
-            type=raw,value=v${{ matrix.version }},enable=${{ matrix.latest }}
-            type=raw,value=latest,enable=${{ matrix.latest }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -117,10 +105,62 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           no-cache: true
 
+  build-latest:
+    needs: versions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate Docker Hub credentials
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          if [ -z "$DOCKER_USERNAME" ] || [ -z "$DOCKER_PASSWORD" ]; then
+            echo "Error: DOCKER_USERNAME or DOCKER_PASSWORD secrets are not set"
+            exit 1
+          fi
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract latest image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: jnovent/openstack-client
+          flavor: latest=false
+          tags: |
+            type=raw,value=v${{ needs.versions.outputs.version }}
+            type=raw,value=latest
+
+      - name: Build and push latest Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          build-args: |
+            VERSION=${{ needs.versions.outputs.version }}
+            OCTAVIA_VERSION=${{ needs.versions.outputs.octavia }}
+            CINDER_VERSION=${{ needs.versions.outputs.cinder }}
+            NEUTRON_VERSION=${{ needs.versions.outputs.neutron }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          no-cache: true
+
   release:
     needs:
       - versions
-      - build-and-push
+      - build-latest
     if: needs.versions.outputs.tag_exists == 'false'
     runs-on: ubuntu-latest
     permissions:

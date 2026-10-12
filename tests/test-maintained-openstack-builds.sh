@@ -16,6 +16,20 @@ run_with_source() {
     sh "$SCRIPT"
 }
 
+expect_failure() {
+  expected_message=$1
+  source_file=$2
+  if run_with_source "$source_file" >"$TEMP_DIR/output" 2>"$TEMP_DIR/errors"; then
+    echo "Expected failure containing: $expected_message" >&2
+    exit 1
+  fi
+  if ! grep -Fq "$expected_message" "$TEMP_DIR/errors"; then
+    echo "Expected error '$expected_message', got:" >&2
+    cat "$TEMP_DIR/errors" >&2
+    exit 1
+  fi
+}
+
 mkdir -p "$TEMP_DIR/deliverables/example-codename"
 cat > "$TEMP_DIR/series.yaml" <<'EOF'
 - name: future
@@ -51,10 +65,34 @@ cat > "$TEMP_DIR/empty.yaml" <<'EOF'
   release-id: 2099.1
   status: development
 EOF
-if run_with_source "$TEMP_DIR/empty.yaml" >"$TEMP_DIR/output" 2>"$TEMP_DIR/errors"; then
-  echo "Expected an error when no maintained release series are present" >&2
-  exit 1
-fi
-grep -q "No valid maintained OpenStack series found" "$TEMP_DIR/errors"
+expect_failure "No valid maintained OpenStack series found" "$TEMP_DIR/empty.yaml"
+
+cat > "$TEMP_DIR/invalid-status.yaml" <<'EOF'
+not-a-series-list
+EOF
+expect_failure "Invalid OpenStack release status data" "$TEMP_DIR/invalid-status.yaml"
+
+cat > "$TEMP_DIR/invalid-name.yaml" <<'EOF'
+- name: "bad codename"
+  release-id: 2099.2
+  status: maintained
+EOF
+expect_failure "Skipping maintained OpenStack series with invalid name or release ID" "$TEMP_DIR/invalid-name.yaml"
+
+cat > "$TEMP_DIR/missing-branch.yaml" <<'EOF'
+- name: example-codename
+  release-id: 2099.3
+  status: maintained
+EOF
+expect_failure "No python-openstackclient version found for stable/2099.3" "$TEMP_DIR/missing-branch.yaml"
+
+cat > "$TEMP_DIR/deliverables/example-codename/python-openstackclient.yaml" <<'EOF'
+releases:
+  - version: 10.3.0
+branches:
+  - name: stable/2099.2
+    location: 10.4.0
+EOF
+expect_failure "Invalid python-openstackclient version for stable/2099.2" "$TEMP_DIR/series.yaml"
 
 echo "Maintained OpenStack build matrix tests passed."

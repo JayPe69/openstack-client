@@ -132,7 +132,6 @@ jobs:
           flavor: latest=false
           tags: |
             type=raw,value=${{ needs.versions.outputs.latest_codename }}-${{ needs.versions.outputs.version }}
-            type=raw,value=v${{ needs.versions.outputs.version }}
             type=raw,value=latest
 
       - name: Build and push latest Docker image

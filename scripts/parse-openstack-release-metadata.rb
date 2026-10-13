@@ -18,6 +18,18 @@ when "series"
     end
     puts "#{name}\t#{release_id}"
   end
+when "latest-codename"
+  series = YAML.safe_load(STDIN.read, permitted_classes: [Date])
+  abort "Invalid OpenStack release status data" unless series.is_a?(Array)
+
+  latest = series.find do |item|
+    item.is_a?(Hash) &&
+      item["status"] == "maintained" &&
+      item["name"].to_s.match?(/\A[a-z0-9][a-z0-9_.-]*\z/) &&
+      item["release-id"].to_s.match?(/\A\d{4}\.\d+\z/)
+  end
+  abort "No maintained OpenStack release codename found" unless latest
+  puts latest["name"]
 when "version"
   release_id = ARGV.fetch(0)
   data = YAML.safe_load(STDIN.read, permitted_classes: [Date])
@@ -41,5 +53,5 @@ when "json"
   abort "No maintained OpenStack builds found" if builds.empty?
   puts JSON.generate(include: builds)
 else
-  abort "Usage: parse-openstack-release-metadata.rb {series|version RELEASE_ID|json}"
+  abort "Usage: parse-openstack-release-metadata.rb {series|latest-codename|version RELEASE_ID|json}"
 end

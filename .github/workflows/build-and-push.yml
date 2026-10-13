@@ -18,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.versions.outputs.version }}
+      latest_codename: ${{ steps.versions.outputs.latest_codename }}
       octavia: ${{ steps.versions.outputs.octavia }}
       cinder: ${{ steps.versions.outputs.cinder }}
       neutron: ${{ steps.versions.outputs.neutron }}
@@ -32,8 +33,10 @@ jobs:
         run: |
           set -euo pipefail
           version=$(./scripts/get-latest-version.sh)
+          latest_codename=$(sh ./scripts/get-latest-maintained-openstack-codename.sh)
 
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "latest_codename=${latest_codename}" >> "$GITHUB_OUTPUT"
           echo "octavia=$(./scripts/get-latest-octavia-version.sh)" >> "$GITHUB_OUTPUT"
           echo "cinder=$(./scripts/get-latest-cinder-version.sh)" >> "$GITHUB_OUTPUT"
           echo "neutron=$(./scripts/get-latest-neutron-version.sh)" >> "$GITHUB_OUTPUT"
@@ -128,6 +131,7 @@ jobs:
           images: jnovent/openstack-client
           flavor: latest=false
           tags: |
+            type=raw,value=${{ needs.versions.outputs.latest_codename }}-${{ needs.versions.outputs.version }}
             type=raw,value=v${{ needs.versions.outputs.version }}
             type=raw,value=latest
 

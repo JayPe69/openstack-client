@@ -2,6 +2,7 @@
 set -eu
 
 SCRIPT="$(dirname "$0")/../scripts/get-maintained-openstack-builds.sh"
+LATEST_CODENAME_SCRIPT="$(dirname "$0")/../scripts/get-latest-maintained-openstack-codename.sh"
 TEMP_DIR=$(mktemp -d /tmp/openstack-builds-test.XXXXXX)
 trap 'rm -rf "$TEMP_DIR"' EXIT HUP INT TERM
 
@@ -14,6 +15,12 @@ run_with_source() {
     OPENSTACK_RELEASE_STATUS_URL="$(file_url "$1")" \
     OPENSTACK_DELIVERABLES_BASE_URL="$(file_url "$TEMP_DIR/deliverables")" \
     sh "$SCRIPT"
+}
+
+run_latest_codename_with_source() {
+  OPENSTACK_RELEASE_ALLOW_FILE_URLS=true \
+    OPENSTACK_RELEASE_STATUS_URL="$(file_url "$1")" \
+    sh "$LATEST_CODENAME_SCRIPT"
 }
 
 expect_failure() {
@@ -94,6 +101,11 @@ fi
 EXPECTED='{"include":[{"name":"example-codename","version":"10.4.0"},{"name":"second-codename","version":"9.1.0"}]}'
 if [ "$BUILDS" != "$EXPECTED" ]; then
   echo "Expected $EXPECTED, got: $BUILDS" >&2
+  exit 1
+fi
+LATEST_CODENAME=$(run_latest_codename_with_source "$TEMP_DIR/series.yaml")
+if [ "$LATEST_CODENAME" != "example-codename" ]; then
+  echo "Expected latest maintained codename example-codename, got: $LATEST_CODENAME" >&2
   exit 1
 fi
 grep -Fq 'Skipping maintained series broken-codename (2099.3)' "$TEMP_DIR/warnings"

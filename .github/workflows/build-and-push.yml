@@ -6,121 +6,179 @@ on:
     - cron: '0 8 * * 1'
   workflow_dispatch: # Allows manual triggering
 
+concurrency:
+  group: openstack-client-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
+  versions:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.versions.outputs.version }}
+      latest_codename: ${{ steps.versions.outputs.latest_codename }}
+      octavia: ${{ steps.versions.outputs.octavia }}
+      cinder: ${{ steps.versions.outputs.cinder }}
+      neutron: ${{ steps.versions.outputs.neutron }}
+      tag_exists: ${{ steps.versions.outputs.tag_exists }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve latest client versions
+        id: versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(./scripts/get-latest-version.sh)
+          latest_codename=$(sh ./scripts/get-latest-maintained-openstack-codename.sh)
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "latest_codename=${latest_codename}" >> "$GITHUB_OUTPUT"
+          echo "octavia=$(./scripts/get-latest-octavia-version.sh)" >> "$GITHUB_OUTPUT"
+          echo "cinder=$(./scripts/get-latest-cinder-version.sh)" >> "$GITHUB_OUTPUT"
+          echo "neutron=$(./scripts/get-latest-neutron-version.sh)" >> "$GITHUB_OUTPUT"
+
+          tag="v${version}"
+          git fetch --tags --quiet
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+            echo "GitHub release tag exists; latest image will be rebuilt"
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+  series:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.series.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test maintained OpenStack build discovery
+        run: sh ./tests/test-maintained-openstack-builds.sh
+
+      - name: Resolve maintained OpenStack builds
+        id: series
+        shell: bash
+        run: |
+          set -euo pipefail
+          matrix=$(sh ./scripts/get-maintained-openstack-builds.sh)
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+          echo "Maintained build matrix: ${matrix}"
+
   build-and-push:
+    needs:
+      - versions
+      - series
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.series.outputs.matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker publishing
+        uses: ./.github/actions/docker-setup
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: jnovent/openstack-client
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ matrix.name }}-${{ matrix.version }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          build-args: |
+            VERSION=${{ matrix.version }}
+            OCTAVIA_VERSION=${{ needs.versions.outputs.octavia }}
+            CINDER_VERSION=${{ needs.versions.outputs.cinder }}
+            NEUTRON_VERSION=${{ needs.versions.outputs.neutron }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          no-cache: true
+
+  build-latest:
+    needs: versions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker publishing
+        uses: ./.github/actions/docker-setup
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract latest image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: jnovent/openstack-client
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ needs.versions.outputs.latest_codename }}-${{ needs.versions.outputs.version }}
+            type=raw,value=latest
+
+      - name: Build and push latest Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          build-args: |
+            VERSION=${{ needs.versions.outputs.version }}
+            OCTAVIA_VERSION=${{ needs.versions.outputs.octavia }}
+            CINDER_VERSION=${{ needs.versions.outputs.cinder }}
+            NEUTRON_VERSION=${{ needs.versions.outputs.neutron }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          no-cache: true
+
+  release:
+    # A successful latest image is released even if an independent series build fails.
+    needs:
+      - versions
+      - build-latest
+    if: needs.versions.outputs.tag_exists == 'false'
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      
-    - name: Get latest openstackclient version
-      id: version
-      run: |
-        VERSION=$(./scripts/get-latest-version.sh)
-        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-        echo "octavia=$(./scripts/get-latest-octavia-version.sh)" >> "$GITHUB_OUTPUT"
-        echo "cinder=$(./scripts/get-latest-cinder-version.sh)" >> "$GITHUB_OUTPUT"
-        echo "neutron=$(./scripts/get-latest-neutron-version.sh)" >> "$GITHUB_OUTPUT"
-        echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
-        echo "Latest python-openstackclient: ${VERSION}"
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Check if git tag exists
-      id: tag_check
-      run: |
-        git fetch --tags --quiet
-        if git rev-parse -q --verify "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null; then
-          echo "exists=true" >> "$GITHUB_OUTPUT"
-          echo "Tag exists: image will be rebuilt for security updates"
-        else
-          echo "exists=false" >> "$GITHUB_OUTPUT"
-        fi
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Validate Docker Hub credentials
-      run: |
-        if [ -z "${{ secrets.DOCKER_USERNAME }}" ] || [ -z "${{ secrets.DOCKER_PASSWORD }}" ]; then
-          echo "Error: DOCKER_USERNAME or DOCKER_PASSWORD secrets are not set"
-          exit 1
-        fi
-        echo "Docker Hub credentials are configured"
-      
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        registry: docker.io
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-        
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: jnovent/openstack-cli
-        tags: |
-          type=raw,value=${{ steps.version.outputs.tag }}
-          type=raw,value=latest
-          
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        build-args: |
-          VERSION=${{ steps.version.outputs.version }}
-          OCTAVIA_VERSION=${{ steps.version.outputs.octavia }}
-          CINDER_VERSION=${{ steps.version.outputs.cinder }}
-          NEUTRON_VERSION=${{ steps.version.outputs.neutron }}
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        no-cache: true
-
-    - name: Create git tag and GitHub release
-      if: steps.tag_check.outputs.exists == 'false'
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        git tag "${{ steps.version.outputs.tag }}"
-        git push origin "${{ steps.version.outputs.tag }}"
-        cat > release-notes.md <<EOF
-        ## Embedded OpenStack CLI versions
-
-        | Client | Version |
-        | --- | --- |
-        | python-openstackclient | ${{ steps.version.outputs.version }} |
-        | python-octaviaclient | ${{ steps.version.outputs.octavia }} |
-        | python-cinderclient | ${{ steps.version.outputs.cinder }} |
-        | python-neutronclient | ${{ steps.version.outputs.neutron }} |
-
-        Docker image: \`jnovent/openstack-cli:${{ steps.version.outputs.tag }}\`
-        EOF
-        gh release create "${{ steps.version.outputs.tag }}" --title "${{ steps.version.outputs.tag }}" --notes-file release-notes.md
-
-    - name: Prepare Docker Hub description
-      run: |
-        {
-          cat README.md
-          echo
-          echo "## Embedded client versions (${{ steps.version.outputs.tag }})"
-          echo
-          echo "| Client | Version |"
-          echo "| --- | --- |"
-          echo "| python-openstackclient | ${{ steps.version.outputs.version }} |"
-          echo "| python-octaviaclient | ${{ steps.version.outputs.octavia }} |"
-          echo "| python-cinderclient | ${{ steps.version.outputs.cinder }} |"
-          echo "| python-neutronclient | ${{ steps.version.outputs.neutron }} |"
-        } > dockerhub-description.md
-
-    - name: Update Docker Hub description
-      uses: peter-evans/dockerhub-description@v4
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-        repository: jnovent/openstack-cli
-        short-description: "OpenStack CLI (openstack, octavia, cinder, neutron) ${{ steps.version.outputs.tag }}"
-        readme-filepath: ./dockerhub-description.md
+      - name: Create git tag and GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.versions.outputs.version }}
+          OCTAVIA_VERSION: ${{ needs.versions.outputs.octavia }}
+          CINDER_VERSION: ${{ needs.versions.outputs.cinder }}
+          NEUTRON_VERSION: ${{ needs.versions.outputs.neutron }}
+        run: |
+          tag="v${VERSION}"
+          {
+            printf '%s\n\n' '## Embedded OpenStack CLI versions'
+            printf '%s\n' '| Client | Version |' '| --- | --- |'
+            printf '| python-openstackclient | %s |\n' "$VERSION"
+            printf '| python-octaviaclient | %s |\n' "$OCTAVIA_VERSION"
+            printf '| python-cinderclient | %s |\n' "$CINDER_VERSION"
+            printf '| python-neutronclient | %s |\n' "$NEUTRON_VERSION"
+            printf '\nDocker image: `jnovent/openstack-client:%s`\n' "$tag"
+          } > release-notes.md
+          # Tag the source commit whose workflow built and published this latest image.
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --notes-file release-notes.md
